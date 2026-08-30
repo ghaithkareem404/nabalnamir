@@ -1,232 +1,215 @@
-/* ==========================================================================
+/* ============================================================
    Naba' Al-Namir — site behaviour
-   ========================================================================== */
+   ============================================================ */
 (function () {
   'use strict';
 
   var WHATSAPP = '9647814141422';
   var EMAIL = 'info@nabalnamir.com';
 
-  /* Embed source for the contact map. Replace the value below with the
-     "Embed a map" iframe src from Google Maps (Share > Embed a map) to pin
-     the exact plant location. */
-  var MAP_EMBED = 'https://www.google.com/maps?q=' +
-    encodeURIComponent('عويريج الصناعية, بغداد') + '&z=14&output=embed';
+  /* ---------- 1. Language toggle (AR <-> EN) ---------- */
+  var STORAGE_KEY = 'nn-lang';
+  var langBtn = document.getElementById('langToggle');
 
-  var COPY = {
+  var UI = {
     ar: {
-      missing: 'يرجى إكمال الحقول المطلوبة.',
-      mailed: 'فُتح برنامج البريد لديك — أكمل الإرسال من هناك.',
-      whats: 'فُتح واتساب في نافذة جديدة.',
-      mapTitle: 'موقع المصنع على الخريطة'
+      formEmpty: 'يرجى تعبئة الحقول المطلوبة.',
+      formSent: 'تم فتح برنامج البريد لديك، أكمل الإرسال من هناك.',
+      formWa: 'تم فتح واتساب في نافذة جديدة.',
+      navLabel: 'القائمة الرئيسية'
     },
     en: {
-      missing: 'Please complete the required fields.',
-      mailed: 'Your email client has opened — finish sending from there.',
-      whats: 'WhatsApp has opened in a new window.',
-      mapTitle: 'Plant location on the map'
+      formEmpty: 'Please fill in the required fields.',
+      formSent: 'Your email client has opened — finish sending from there.',
+      formWa: 'WhatsApp has opened in a new window.',
+      navLabel: 'Main navigation'
     }
   };
 
-  function lang() {
+  function currentLang() {
     return document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'ar';
   }
-  function t(key) {
-    return COPY[lang()][key];
-  }
 
-  /* ---------- language ---------- */
-  var KEY = 'nn-lang';
-  var langBtn = document.getElementById('langToggle');
-  var langLabel = langBtn ? langBtn.querySelector('span') : null;
-
-  function setLang(next) {
-    var root = document.documentElement;
-    root.setAttribute('lang', next);
-    root.setAttribute('dir', next === 'ar' ? 'rtl' : 'ltr');
+  function applyLang(lang) {
+    var html = document.documentElement;
+    html.setAttribute('lang', lang);
+    html.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
 
     var nodes = document.querySelectorAll('[data-ar][data-en]');
     for (var i = 0; i < nodes.length; i++) {
-      var value = nodes[i].getAttribute(next === 'ar' ? 'data-ar' : 'data-en');
-      if (value !== null) nodes[i].innerHTML = value;
+      var el = nodes[i];
+      var text = el.getAttribute(lang === 'ar' ? 'data-ar' : 'data-en');
+      if (text !== null) el.innerHTML = text;
     }
 
-    if (langLabel) langLabel.textContent = next === 'ar' ? 'EN' : 'ع';
     if (langBtn) {
-      langBtn.setAttribute('aria-label',
-        next === 'ar' ? 'Switch to English' : 'التبديل إلى العربية');
+      langBtn.textContent = lang === 'ar' ? 'EN' : 'ع';
+      langBtn.setAttribute('aria-label', lang === 'ar' ? 'Switch to English' : 'التبديل إلى العربية');
     }
 
-    document.title = next === 'ar'
+    document.title = lang === 'ar'
       ? 'شركة نبع النمير لتعبئة المياه الصحية والعصائر المحدودة'
       : "Naba' Al-Namir Company for Healthy Water Bottling & Juices, Ltd.";
 
-    var frame = document.querySelector('.mapbox iframe');
-    if (frame) frame.setAttribute('title', t('mapTitle'));
-
-    try { localStorage.setItem(KEY, next); } catch (e) { /* storage unavailable */ }
+    try { localStorage.setItem(STORAGE_KEY, lang); } catch (e) { /* storage blocked */ }
   }
 
   try {
-    if (localStorage.getItem(KEY) === 'en') setLang('en');
-  } catch (e) { /* storage unavailable */ }
+    var saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === 'en') applyLang('en');
+  } catch (e) { /* storage blocked */ }
 
   if (langBtn) {
     langBtn.addEventListener('click', function () {
-      setLang(lang() === 'ar' ? 'en' : 'ar');
+      applyLang(currentLang() === 'ar' ? 'en' : 'ar');
     });
   }
 
-  /* ---------- mobile navigation ---------- */
-  var burger = document.getElementById('navToggle');
-  var nav = document.getElementById('nav');
+  /* ---------- 2. Mobile navigation ---------- */
+  var navToggle = document.getElementById('navToggle');
+  var mainNav = document.getElementById('mainNav');
 
-  if (burger && nav) {
-    burger.addEventListener('click', function () {
-      var open = nav.classList.toggle('open');
-      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (navToggle && mainNav) {
+    navToggle.addEventListener('click', function () {
+      var open = mainNav.classList.toggle('open');
+      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
-    nav.addEventListener('click', function (ev) {
-      if (ev.target.tagName !== 'A') return;
-      nav.classList.remove('open');
-      burger.setAttribute('aria-expanded', 'false');
+
+    mainNav.addEventListener('click', function (ev) {
+      if (ev.target.tagName === 'A') {
+        mainNav.classList.remove('open');
+        navToggle.setAttribute('aria-expanded', 'false');
+      }
     });
   }
 
-  /* ---------- active section in the nav ---------- */
-  var links = nav ? nav.querySelectorAll('a[href^="#"]') : [];
-  var marks = [];
-  for (var n = 0; n < links.length; n++) {
-    var section = document.querySelector(links[n].getAttribute('href'));
-    if (section) marks.push({ link: links[n], el: section });
+  /* ---------- 3. Header shadow + active link on scroll ---------- */
+  var header = document.getElementById('siteHeader');
+  var navLinks = mainNav ? mainNav.querySelectorAll('a[href^="#"]') : [];
+  var sections = [];
+
+  for (var n = 0; n < navLinks.length; n++) {
+    var target = document.querySelector(navLinks[n].getAttribute('href'));
+    if (target) sections.push({ link: navLinks[n], el: target });
   }
 
-  function syncNav() {
-    var line = window.scrollY + 140;
-    var current = null;
-    for (var i = 0; i < marks.length; i++) {
-      if (marks[i].el.offsetTop <= line) current = marks[i];
+  function onScroll() {
+    if (header) header.classList.toggle('scrolled', window.scrollY > 10);
+
+    var pos = window.scrollY + 140;
+    var active = null;
+    for (var i = 0; i < sections.length; i++) {
+      if (sections[i].el.offsetTop <= pos) active = sections[i];
     }
-    for (var j = 0; j < marks.length; j++) {
-      marks[j].link.classList.toggle('on', marks[j] === current);
+    for (var j = 0; j < sections.length; j++) {
+      sections[j].link.classList.toggle('active', sections[j] === active);
     }
   }
 
-  var queued = false;
+  var ticking = false;
   window.addEventListener('scroll', function () {
-    if (queued) return;
-    queued = true;
-    window.requestAnimationFrame(function () { syncNav(); queued = false; });
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(function () { onScroll(); ticking = false; });
   }, { passive: true });
-  syncNav();
+  onScroll();
 
-  /* ---------- product filters ---------- */
-  var filters = document.querySelectorAll('.fl');
-  var items = document.querySelectorAll('.pitem');
+  /* ---------- 4. Product filters ---------- */
+  var filters = document.querySelectorAll('.filter');
+  var products = document.querySelectorAll('.product');
 
   for (var f = 0; f < filters.length; f++) {
     filters[f].addEventListener('click', function () {
-      var want = this.getAttribute('data-filter');
-      for (var a = 0; a < filters.length; a++) filters[a].classList.remove('on');
-      this.classList.add('on');
-      for (var b = 0; b < items.length; b++) {
-        var keep = want === 'all' || items[b].getAttribute('data-cat') === want;
-        items[b].classList.toggle('off', !keep);
+      var cat = this.getAttribute('data-filter');
+      for (var k = 0; k < filters.length; k++) filters[k].classList.remove('is-active');
+      this.classList.add('is-active');
+      for (var p = 0; p < products.length; p++) {
+        var show = cat === 'all' || products[p].getAttribute('data-cat') === cat;
+        products[p].classList.toggle('is-hidden', !show);
       }
     });
   }
 
-  /* ---------- entrance ---------- */
-  var rising = document.querySelectorAll(
-    '.pillars li, .brand-lead, .brand-min, .pitem, .stages li, .terms, .reach-list, .form, .facts'
+  /* ---------- 5. Reveal on scroll ---------- */
+  var revealTargets = document.querySelectorAll(
+    '.trust-item, .brand-card, .product, .steps li, .vm, .ci-item, .dist-card, .about-panel'
   );
 
   if ('IntersectionObserver' in window) {
-    var watcher = new IntersectionObserver(function (entries) {
+    var io = new IntersectionObserver(function (entries) {
       for (var i = 0; i < entries.length; i++) {
-        if (!entries[i].isIntersecting) continue;
-        entries[i].target.classList.add('in');
-        watcher.unobserve(entries[i].target);
+        if (entries[i].isIntersecting) {
+          entries[i].target.classList.add('visible');
+          io.unobserve(entries[i].target);
+        }
       }
-    }, { threshold: 0.1, rootMargin: '0px 0px -30px 0px' });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
 
-    for (var r = 0; r < rising.length; r++) {
-      rising[r].classList.add('rise');
-      watcher.observe(rising[r]);
+    for (var r = 0; r < revealTargets.length; r++) {
+      revealTargets[r].classList.add('reveal');
+      io.observe(revealTargets[r]);
     }
   }
 
-  /* ---------- map, loaded on request ---------- */
-  var mapBox = document.getElementById('mapBox');
-  var mapBtn = document.getElementById('mapLoad');
-
-  if (mapBox && mapBtn) {
-    mapBtn.addEventListener('click', function () {
-      var frame = document.createElement('iframe');
-      frame.setAttribute('title', t('mapTitle'));
-      frame.setAttribute('src', MAP_EMBED);
-      frame.setAttribute('loading', 'lazy');
-      frame.setAttribute('referrerpolicy', 'no-referrer-when-downgrade');
-      frame.setAttribute('allowfullscreen', '');
-      mapBox.replaceChildren(frame);
-    });
-  }
-
-  /* ---------- contact form ---------- */
+  /* ---------- 6. Contact form ---------- */
   var form = document.getElementById('contactForm');
   var note = document.getElementById('formNote');
   var waBtn = document.getElementById('sendWhatsapp');
 
-  function collect() {
+  function readForm() {
+    if (!form) return null;
     var els = form.elements;
     var name = els.name.value.trim();
     var phone = els.phone.value.trim();
     var message = els.message.value.trim();
-    var picked = els.subject.options[els.subject.selectedIndex];
-    var subject = picked.getAttribute(lang() === 'ar' ? 'data-ar' : 'data-en') || picked.text;
+    var select = els.subject;
+    var chosen = select.options[select.selectedIndex];
+    var subject = chosen.getAttribute(currentLang() === 'ar' ? 'data-ar' : 'data-en') || chosen.text;
 
-    els.name.classList.toggle('bad', !name);
-    els.phone.classList.toggle('bad', !phone);
-    els.message.classList.toggle('bad', !message);
+    els.name.classList.toggle('invalid', !name);
+    els.phone.classList.toggle('invalid', !phone);
+    els.message.classList.toggle('invalid', !message);
 
     if (!name || !phone || !message) {
-      if (note) { note.textContent = t('missing'); note.classList.add('bad'); }
+      if (note) {
+        note.textContent = UI[currentLang()].formEmpty;
+        note.classList.add('error');
+      }
       return null;
     }
-    if (note) note.classList.remove('bad');
+    if (note) note.classList.remove('error');
     return { name: name, phone: phone, message: message, subject: subject };
   }
 
-  function body(d) {
-    return lang() === 'ar'
-      ? 'الاسم: ' + d.name + '\nالهاتف: ' + d.phone + '\nالموضوع: ' + d.subject + '\n\n' + d.message
-      : 'Name: ' + d.name + '\nPhone: ' + d.phone + '\nSubject: ' + d.subject + '\n\n' + d.message;
+  function bodyText(d) {
+    return currentLang() === 'ar'
+      ? 'الاسم: ' + d.name + '\nالهاتف: ' + d.phone + '\nنوع الطلب: ' + d.subject + '\n\n' + d.message
+      : 'Name: ' + d.name + '\nPhone: ' + d.phone + '\nRequest: ' + d.subject + '\n\n' + d.message;
   }
 
   if (form) {
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      var d = collect();
+      var d = readForm();
       if (!d) return;
-      var subject = (lang() === 'ar' ? 'من الموقع: ' : 'From the website: ') + d.subject;
+      var subj = (currentLang() === 'ar' ? 'طلب من الموقع: ' : 'Website request: ') + d.subject;
       window.location.href = 'mailto:' + EMAIL +
-        '?subject=' + encodeURIComponent(subject) +
-        '&body=' + encodeURIComponent(body(d));
-      if (note) note.textContent = t('mailed');
+        '?subject=' + encodeURIComponent(subj) +
+        '&body=' + encodeURIComponent(bodyText(d));
+      if (note) note.textContent = UI[currentLang()].formSent;
     });
   }
 
   if (waBtn) {
     waBtn.addEventListener('click', function () {
-      var d = collect();
+      var d = readForm();
       if (!d) return;
-      window.open('https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(body(d)),
-        '_blank', 'noopener');
-      if (note) note.textContent = t('whats');
+      window.open('https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(bodyText(d)), '_blank', 'noopener');
+      if (note) note.textContent = UI[currentLang()].formWa;
     });
   }
 
-  /* ---------- footer year ---------- */
+  /* ---------- 7. Footer year ---------- */
   var year = document.getElementById('year');
   if (year) year.textContent = String(new Date().getFullYear());
 })();
