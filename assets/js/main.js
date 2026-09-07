@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  var WHATSAPP = '9647814141422';
+  var WHATSAPP = '9647818181855';
   var EMAIL = 'info@nabalnamir.com';
 
   /* ---------- 1. Language toggle (AR <-> EN) ---------- */
